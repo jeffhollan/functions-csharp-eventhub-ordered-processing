@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.27323.2
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderedEventHubs", "OrderedEventHubs\OrderedEventHubs.csproj", "{EE5AA08E-8889-4E4E-9617-C368D10424C1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventHubSender", "EventHubSender\EventHubSender.csproj", "{5760E6EB-9944-4C72-B943-AA3D7AD21927}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{EE5AA08E-8889-4E4E-9617-C368D10424C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EE5AA08E-8889-4E4E-9617-C368D10424C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EE5AA08E-8889-4E4E-9617-C368D10424C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5760E6EB-9944-4C72-B943-AA3D7AD21927}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5760E6EB-9944-4C72-B943-AA3D7AD21927}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5760E6EB-9944-4C72-B943-AA3D7AD21927}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5760E6EB-9944-4C72-B943-AA3D7AD21927}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

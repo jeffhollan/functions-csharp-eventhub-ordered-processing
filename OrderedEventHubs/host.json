@@ -1,2 +1,3 @@
 {
+  "eventHub": {"maxBatchSize": 1000}
 }
