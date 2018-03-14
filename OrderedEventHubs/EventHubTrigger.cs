@@ -14,17 +14,22 @@ namespace OrderedEventHubs
         private static IDatabase db = redis.GetDatabase();
 
         [FunctionName("EventHubTrigger")]
-        public static async Task RunAsync([EventHubTrigger("ordered", Connection = "EventHub")] EventData[] eventDataSet, TraceWriter log)
+        public static async Task RunAsync([EventHubTrigger(eventHubName: "events", Connection = "EventHub")] EventData[] eventDataSet, TraceWriter log)
         {
             log.Info($"Triggered batch of size {eventDataSet.Length}");
             foreach (var eventData in eventDataSet) {
                 try
                 {
+                    if((string)eventData.Properties["counter"] =="500")
+                    {
+                        throw new ArgumentException("Got the 500 item");
+                    }
                     await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"]);
                 }
-                catch
+                catch(Exception ex)
                 {
-                    // handle event exception
+                    log.Info($"Caught exception: {ex.Message}");
+                    await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"] + "CAUGHT0");
                 }
             }
         }
