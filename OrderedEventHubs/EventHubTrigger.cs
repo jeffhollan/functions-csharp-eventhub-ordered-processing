@@ -6,6 +6,7 @@ using Polly;
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace OrderedEventHubs
@@ -15,7 +16,10 @@ namespace OrderedEventHubs
         private static ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(Environment.GetEnvironmentVariable("Redis"));
         private static IDatabase db = redis.GetDatabase();
         [FunctionName("EventHubTrigger")]
-        public static async Task RunAsync([EventHubTrigger(eventHubName: "events", Connection = "EventHub")] EventData[] eventDataSet, TraceWriter log)
+        public static async Task RunAsync(
+            [EventHubTrigger(eventHubName: "events", Connection = "EventHub")] EventData[] eventDataSet, 
+            TraceWriter log,
+            [Queue("deadletter")] IAsyncCollector<string> queue)
         {
             log.Info($"Triggered batch of size {eventDataSet.Length}");
 
@@ -39,6 +43,8 @@ namespace OrderedEventHubs
                 if(result.Outcome == OutcomeType.Failure)
                 {
                     await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"] + "FAILED");
+                    await queue.AddAsync(Encoding.UTF8.GetString(eventData.Body.Array));
+                    await queue.FlushAsync();
                 }
             }
         }
