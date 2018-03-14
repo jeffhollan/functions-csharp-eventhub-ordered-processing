@@ -34,7 +34,7 @@ namespace OrderedEventHubs
                     }
                     await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"]);
                 },
-                new Dictionary<string, object>() { { "partitionKey", eventData.Properties["partitionKey"] }, { "counter", eventData.Properties["counter"] } }, true);
+                new Dictionary<string, object>() { { "partitionKey", eventData.Properties["partitionKey"] }, { "counter", eventData.Properties["counter"] } });
 
                 if(result.Outcome == OutcomeType.Failure)
                 {
