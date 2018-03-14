@@ -17,10 +17,10 @@ namespace OrderedEventHubs
     {
         private static ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(Environment.GetEnvironmentVariable("Redis"));
         private static IDatabase db = redis.GetDatabase();
-        private static Policy _circuit;
+        private static int FAILURE_SECONDS = 10;
+        private static int FAILURE_THRESHOLD = 50;
 
         [FunctionName("EventHubTrigger")]
-        [Disable(typeof(CircuitStatus))]
         public static async Task RunAsync(
             [EventHubTrigger(eventHubName: "events", Connection = "EventHub")] EventData[] eventDataSet, 
             TraceWriter log,
@@ -34,7 +34,6 @@ namespace OrderedEventHubs
                 {
                     await db.ListRightPushAsync("events:" + context["partitionKey"], (string)context["counter"] + $"CAUGHT{retryCount}");
                 })
-                .WrapAsync(GetCircuit())
                 .ExecuteAndCaptureAsync(async () =>
                 {
                     if (int.Parse((string)eventData.Properties["counter"]) % 100 == 0)
@@ -47,43 +46,33 @@ namespace OrderedEventHubs
 
                 if(result.Outcome == OutcomeType.Failure)
                 {
-                    await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"] + "FAILED");
                     await queue.AddAsync(Encoding.UTF8.GetString(eventData.Body.Array));
                     await queue.FlushAsync();
+                    await LogFailure(eventData.SystemProperties.EnqueuedTimeUtc.Ticks);
+                    await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"] + "FAILED");
                 }
             }
         }
 
-        private static Policy GetCircuit()
+        private static async Task LogFailure(long ticks)
         {
-            if(_circuit == null)
+            var trans = db.CreateTransaction();
+            trans.AddCondition(Condition.KeyNotExists("break"));
+            trans.SortedSetRemoveRangeByScoreAsync("failures", double.NegativeInfinity, DateTime.Now.AddSeconds(FAILURE_SECONDS * -1).Ticks);
+            trans.SortedSetAddAsync("failures", DateTime.Now.Ticks, DateTime.Now.Ticks);
+            trans.KeyExpireAsync("failures", new TimeSpan(0, 0, FAILURE_SECONDS));
+            var rolling_failures = trans.SortedSetLengthAsync("failures");
+            if (await trans.ExecuteAsync())
             {
-                Action<Exception, TimeSpan> onBreak = (exception, timespan) => {
-                    CircuitStatus.Disable();
-                    //File.SetLastWriteTimeUtc("host.json", DateTime.UtcNow);
-                };
-                Action onReset = () => {
-                    CircuitStatus.Enable();
-                    //File.SetLastWriteTimeUtc("host.json", DateTime.UtcNow);
-                };
-                _circuit = Policy
-                    .Handle<Exception>()
-                    .CircuitBreakerAsync(10, new TimeSpan(0, 5, 0), onBreak, onReset);  
-            }
-            return _circuit;
-        }
-
-        private static class CircuitStatus
-        {
-            private static bool _status = bool.Parse(db.StringGet("disabled"));
-            public static bool IsDisabled(MethodInfo method) { return _status; }
-            public static void Disable() {
-                db.StringSet("disabled", "true");
-                _status = true;
-            }
-            public static void Enable() {
-                db.StringSet("disabled", "false");
-                _status = false;
+                var failures = await rolling_failures;
+                if (failures >= FAILURE_THRESHOLD)
+                {
+                    trans = db.CreateTransaction();
+                    trans.AddCondition(Condition.KeyNotExists("break"));
+                    trans.ListRightPushAsync("break_log", "FAILURE TRIGGERED AT " + DateTime.Now + " WITH " + failures + " FAILURES");
+                    trans.StringSetAsync("break", "true");
+                    await trans.ExecuteAsync();
+                }
             }
         }
     }
