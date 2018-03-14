@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using System.Reflection;
 
 namespace OrderedEventHubs
 {
@@ -59,11 +60,11 @@ namespace OrderedEventHubs
             {
                 Action<Exception, TimeSpan> onBreak = (exception, timespan) => {
                     CircuitStatus.Disable();
-                    File.SetLastWriteTimeUtc("host.json", DateTime.UtcNow);
+                    //File.SetLastWriteTimeUtc("host.json", DateTime.UtcNow);
                 };
                 Action onReset = () => {
                     CircuitStatus.Enable();
-                    File.SetLastWriteTimeUtc("host.json", DateTime.UtcNow);
+                    //File.SetLastWriteTimeUtc("host.json", DateTime.UtcNow);
                 };
                 _circuit = Policy
                     .Handle<Exception>()
@@ -75,7 +76,7 @@ namespace OrderedEventHubs
         private static class CircuitStatus
         {
             private static bool _status = bool.Parse(db.StringGet("disabled"));
-            public static bool IsDisabled() { return _status; }
+            public static bool IsDisabled(MethodInfo method) { return _status; }
             public static void Disable() {
                 db.StringSet("disabled", "true");
                 _status = true;
