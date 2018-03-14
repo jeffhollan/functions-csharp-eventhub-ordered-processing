@@ -2,8 +2,10 @@ using Microsoft.Azure.EventHubs;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.ServiceBus;
+using Polly;
 using StackExchange.Redis;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace OrderedEventHubs
@@ -12,24 +14,31 @@ namespace OrderedEventHubs
     {
         private static ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(Environment.GetEnvironmentVariable("Redis"));
         private static IDatabase db = redis.GetDatabase();
-
         [FunctionName("EventHubTrigger")]
         public static async Task RunAsync([EventHubTrigger(eventHubName: "events", Connection = "EventHub")] EventData[] eventDataSet, TraceWriter log)
         {
             log.Info($"Triggered batch of size {eventDataSet.Length}");
+
             foreach (var eventData in eventDataSet) {
-                try
+                var result = await Policy
+                .Handle<Exception>()
+                .RetryAsync(3, onRetryAsync: async (exception, retryCount, context) =>
                 {
-                    if((string)eventData.Properties["counter"] =="500")
+                    await db.ListRightPushAsync("events:" + context["partitionKey"], (string)context["counter"] + $"CAUGHT{retryCount}");
+                })
+                .ExecuteAndCaptureAsync(async () =>
+                {
+                    if (int.Parse((string)eventData.Properties["counter"]) % 100 == 0)
                     {
-                        throw new ArgumentException("Got the 500 item");
+                        throw new SystemException("Some Exception");
                     }
                     await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"]);
-                }
-                catch(Exception ex)
+                },
+                new Dictionary<string, object>() { { "partitionKey", eventData.Properties["partitionKey"] }, { "counter", eventData.Properties["counter"] } }, true);
+
+                if(result.Outcome == OutcomeType.Failure)
                 {
-                    log.Info($"Caught exception: {ex.Message}");
-                    await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"] + "CAUGHT0");
+                    await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"] + "FAILED");
                 }
             }
         }
