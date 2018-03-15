@@ -6,10 +6,11 @@ using Polly;
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using System.Reflection;
+using System.Net.Http;
+using Microsoft.Azure.EventGrid.Models;
+using Microsoft.Azure.EventGrid;
 
 namespace OrderedEventHubs
 {
@@ -17,12 +18,15 @@ namespace OrderedEventHubs
     {
         private static ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(Environment.GetEnvironmentVariable("Redis"));
         private static IDatabase db = redis.GetDatabase();
-        private static int FAILURE_SECONDS = 10;
-        private static int FAILURE_THRESHOLD = 50;
+        private static HttpClient client = new HttpClient();
+        private static int FAILURE_SECONDS = int.Parse(Environment.GetEnvironmentVariable("FailureSeconds"));
+        private static int FAILURE_THRESHOLD = int.Parse(Environment.GetEnvironmentVariable("FailureThreshold"));
+        private static EventGridClient eventGridClient = new EventGridClient(new TopicCredentials(Environment.GetEnvironmentVariable("EventGrid")));
+        private static string eventGridEndpoint = Environment.GetEnvironmentVariable("EventGridEndpoint");
 
         [FunctionName("EventHubTrigger")]
         public static async Task RunAsync(
-            [EventHubTrigger(eventHubName: "events", Connection = "EventHub")] EventData[] eventDataSet, 
+            [EventHubTrigger(eventHubName: "events2", Connection = "EventHub")] EventData[] eventDataSet, 
             TraceWriter log,
             [Queue("deadletter")] IAsyncCollector<string> queue)
         {
@@ -71,9 +75,26 @@ namespace OrderedEventHubs
                     trans.AddCondition(Condition.KeyNotExists("break"));
                     trans.ListRightPushAsync("break_log", "FAILURE TRIGGERED AT " + DateTime.Now + " WITH " + failures + " FAILURES");
                     trans.StringSetAsync("break", "true");
-                    await trans.ExecuteAsync();
+                    if(await trans.ExecuteAsync())
+                    {
+                        await EmitEvent();
+                    }
                 }
             }
+        }
+
+        private static async Task EmitEvent()
+        {
+            await eventGridClient.PublishEventsAsync(eventGridEndpoint, new List<EventGridEvent>() { new EventGridEvent()
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Subject = "Alert/Break",
+                    EventType = "CircuitBreaker",
+                    EventTime = DateTime.Now,
+                    Data = new { },
+                    DataVersion = "1.0"
+                }
+            });
         }
     }
 }

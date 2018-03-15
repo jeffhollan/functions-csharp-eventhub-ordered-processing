@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Azure.EventGrid;
+using Microsoft.Azure.EventGrid.Models;
 using Microsoft.Azure.EventHubs;
 
 namespace EventHubSender
@@ -10,7 +12,8 @@ namespace EventHubSender
     {
         private static int NUM_OF_EVENTS = 1000;
         private static int PARTITION_KEYS = 100;
-        private static EventHubClient ehc = EventHubClient.CreateFromConnectionString(Environment.GetEnvironmentVariable("EventHubEntityConnection"));
+        private static EventHubClient ehc = EventHubClient.CreateFromConnectionString(Environment.GetEnvironmentVariable("EventHub2"));
+
         static void Main(string[] args)
         {
             Console.WriteLine($"Sending {NUM_OF_EVENTS} events to {PARTITION_KEYS} partition keys...");
