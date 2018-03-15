@@ -8,8 +8,8 @@ namespace EventHubSender
 {
     class Program
     {
-        private static int NUM_OF_EVENTS = 1000;
-        private static int PARTITION_KEYS = 100;
+        private static int NUM_OF_EVENTS = 50;
+        private static int PARTITION_KEYS = 1;
         private static EventHubClient ehc = EventHubClient.CreateFromConnectionString(Environment.GetEnvironmentVariable("EventHubEntityConnection"));
         static void Main(string[] args)
         {
