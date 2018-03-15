@@ -21,7 +21,7 @@ namespace OrderedEventHubs
             foreach (var eventData in eventDataSet) {
                 if (int.Parse((string)eventData.Properties["counter"]) % 10 == 0)
                 {
-                    Thread.Sleep(new TimeSpan(0, 6, 0));
+                    await Task.Delay(TimeSpan.FromMinutes(6));
                 }
                 await db.ListRightPushAsync("events:" + eventData.Properties["partitionKey"], (string)eventData.Properties["counter"]);
 
